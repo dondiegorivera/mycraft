@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>MineClone AI Agent (10x10 Vision)</title>
+    <title>MineClone AI Agent (Groq & Ollama)</title>
     <meta charset="UTF-8">
     <style>
         body {
@@ -103,21 +103,16 @@
             #status { color: yellow; font-size: 16px; margin-top: 10px;}
 
             /* --- AI UI --- */
-            .ai-panel {
-                background: rgba(0,0,0,0.6);
-                color: white;
-                padding: 10px;
-                border-radius: 5px;
-                width: 380px;
-                font-size: 12px;
-                white-space: pre-wrap;
-                word-wrap: break-word;
-            }
             #ai-controls {
                 position: absolute;
                 top: 10px;
                 right: 10px;
+                background: rgba(0,0,0,0.5);
+                color: white;
+                padding: 10px;
+                border-radius: 5px;
                 z-index: 101;
+                width: 350px;
             }
             #ai-controls h3 { margin-top: 0; }
             #ai-controls label { display: block; margin-top: 5px; }
@@ -140,27 +135,13 @@
                 background: rgba(0,0,0,0.3);
                 padding: 8px;
                 border-radius: 3px;
-                max-height: 150px;
+                max-height: 200px;
                 overflow-y: auto;
+                font-size: 12px;
+                white-space: pre-wrap;
+                word-wrap: break-word;
             }
             .provider-settings { border-top: 1px solid #555; margin-top: 10px; padding-top: 10px;}
-
-            #prompt-inspector {
-                position: absolute;
-                bottom: 10px;
-                left: 10px;
-                z-index: 101;
-                max-height: 50vh;
-                overflow-y: auto;
-                pointer-events: all;
-                display: none;
-                line-height: 1.1;
-            }
-            #prompt-inspector h4 {
-                margin: 0 0 5px 0;
-                padding: 0;
-                border-bottom: 1px solid #777;
-            }
 
     </style>
 </head>
@@ -185,7 +166,7 @@
          <span id="posDebug">Pos: 0,0,0</span>
       </div>
 
-    <div id="ai-controls" class="ai-panel">
+    <div id="ai-controls">
         <h3>AI Control Panel</h3>
         <div>
             <label>Provider:</label>
@@ -210,18 +191,13 @@
             <button id="fetch-ollama-models">Fetch Local Models</button>
             <label for="ollamaModelSelector">Model:</label>
             <select id="ollamaModelSelector"></select>
-            <small id="ollama-status" style="display:block; margin-top:5px;">Run `OLLAMA_ORIGINS='*' ollama serve` in terminal first!</small>
+            <small id="ollama-status" style="display:block; margin-top:5px;">Run `OLLAMA_ORIGINS=http://* ollama serve` in terminal first!</small>
         </div>
         
         <label for="aiGoal" style="margin-top:10px;">AI Goal:</label>
         <input type="text" id="aiGoal" value="Chop down one tree and gather 3 wood blocks.">
         <button id="ai-toggle" style="margin-top:10px;">Enable AI Mode</button>
         <div id="ai-status">AI is idle.</div>
-    </div>
-
-    <div id="prompt-inspector" class="ai-panel">
-        <h4>Live Prompt Sent to LLM</h4>
-        <div id="prompt-content"></div>
     </div>
 
 
@@ -241,6 +217,7 @@
       import * as THREE from 'three';
       import { createNoise2D } from 'simplex-noise';
      
+      // --- GLOBALS and CONSTANTS ---
       let statusDiv, posDebug;
       const CHUNK_SIZE = 16;
       const WORLD_HEIGHT = 64; 
@@ -327,59 +304,59 @@
             texture.colorSpace = THREE.SRGBColorSpace;
             return texture;
        }
-      function noisyPattern(x,y, colors) { return colors[Math.floor(Math.random() * colors.length)]; }
-      function noisyAlphaPattern(x,y, colors) {
-           if (Math.random() < 0.15) return 'rgba(0,0,0,0)';
-          return colors[Math.floor(Math.random() * colors.length)];
-      }
-      function grassTopPattern(x,y, colors) {
-          const base = colors.dirt[Math.floor(Math.random() * colors.dirt.length)];
-          const overlay = colors.grass[Math.floor(Math.random() * colors.grass.length)];
-           return (Math.random() > 0.45) ? overlay : base;
-      }
-      function woodPattern(x,y, colors) {
-           const base = colors[Math.floor(Math.random() * colors.length)];
-            if ((x + y * 0.5) % 4 < 0.8 && Math.random() > 0.3 ) return "#402810";
-            return base;
+       function noisyPattern(x,y, colors) { return colors[Math.floor(Math.random() * colors.length)]; }
+       function noisyAlphaPattern(x,y, colors) {
+            if (Math.random() < 0.15) return 'rgba(0,0,0,0)';
+           return colors[Math.floor(Math.random() * colors.length)];
        }
-      function woodTopPattern(x,y, colors) {
-           const base = colors[Math.floor(Math.random() * colors.length)];
-            const dx = x - TEXTURE_SIZE/2 + 0.5;
-            const dy = y - TEXTURE_SIZE/2 + 0.5;
-            const dist = Math.sqrt(dx*dx + dy*dy);
-            if (dist > 0.5 && dist % 2.5 < 0.7 && Math.random() > 0.3 ) return "#402810";
-            return base;
+       function grassTopPattern(x,y, colors) {
+           const base = colors.dirt[Math.floor(Math.random() * colors.dirt.length)];
+           const overlay = colors.grass[Math.floor(Math.random() * colors.grass.length)];
+            return (Math.random() > 0.45) ? overlay : base;
        }
+        function woodPattern(x,y, colors) {
+            const base = colors[Math.floor(Math.random() * colors.length)];
+             if ((x + y * 0.5) % 4 < 0.8 && Math.random() > 0.3 ) return "#402810";
+             return base;
+        }
+         function woodTopPattern(x,y, colors) {
+            const base = colors[Math.floor(Math.random() * colors.length)];
+             const dx = x - TEXTURE_SIZE/2 + 0.5;
+             const dy = y - TEXTURE_SIZE/2 + 0.5;
+             const dist = Math.sqrt(dx*dx + dy*dy);
+             if (dist > 0.5 && dist % 2.5 < 0.7 && Math.random() > 0.3 ) return "#402810";
+             return base;
+        }
       function createMaterials() {
          const dirtColors = ["#614226", "#593e23", "#69492a"];
          const stoneColors = ["#777777", "#888888", "#808080", "#707070"];
-         const grassColors = ["#487134", "#3e612d", "#507d3a", "#5a8a42"];
-         const woodColors = ["#6d4c2b", "#7a5632", "#875f35"];
-         const leaveColors = ["#228B22aa", "#2e8b2eaa", "#387038aa"];
-         const sandColors = ["#dbca96", "#e3d3a1", "#c9b988"];
-         const waterColors = ["rgba(30, 100, 220, 0.6)", "rgba(40, 110, 230, 0.6)","rgba(20, 90, 200, 0.6)"];
-         const basicMat = (tex, transparent = false, opacity=1.0) => new THREE.MeshLambertMaterial({ map: tex, transparent: transparent, opacity: opacity, alphaTest: transparent ? 0.2 : 0 });
-         const dirtTex = createPixelTexture(dirtColors, noisyPattern);
-         const stoneTex = createPixelTexture(stoneColors, noisyPattern);
-         const cobbleTex = createPixelTexture(["#666", "#777", "#6a6a6a", "#5c5c5c"], noisyPattern);
-         const grassSideTex = createPixelTexture({dirt: dirtColors, grass: grassColors}, (x,y,c) => y < TEXTURE_SIZE / 3.5 ? grassTopPattern(x,y,c) : noisyPattern(x,y,c.dirt) );
-         const grassTopTex = createPixelTexture({dirt: dirtColors, grass: grassColors}, grassTopPattern);
-         const woodSideTex = createPixelTexture(woodColors, woodPattern);
-         const woodTopTex = createPixelTexture(woodColors, woodTopPattern);
-         const leaveTex = createPixelTexture(leaveColors, noisyAlphaPattern);
-         const sandTex = createPixelTexture(sandColors, noisyPattern);
-         const waterTex = createPixelTexture(waterColors, noisyPattern);
-         materials[BLOCK_TYPE.DIRT] = basicMat(dirtTex);
-         materials[BLOCK_TYPE.STONE] = basicMat(stoneTex);
-         materials[BLOCK_TYPE.COBBLE] = basicMat(cobbleTex);
-         materials[BLOCK_TYPE.SAND] = basicMat(sandTex);
-         materials[BLOCK_TYPE.LEAVES] = basicMat(leaveTex, true);
-         materials[BLOCK_TYPE.WATER] = basicMat(waterTex, true, 0.7);
-         materials[BLOCK_TYPE.GRASS] = [basicMat(grassSideTex), basicMat(grassSideTex), basicMat(grassTopTex), basicMat(dirtTex), basicMat(grassSideTex), basicMat(grassSideTex)];
-         materials[BLOCK_TYPE.WOOD] = [basicMat(woodSideTex), basicMat(woodSideTex), basicMat(woodTopTex), basicMat(woodTopTex), basicMat(woodSideTex), basicMat(woodSideTex)];
+          const grassColors = ["#487134", "#3e612d", "#507d3a", "#5a8a42"];
+           const woodColors = ["#6d4c2b", "#7a5632", "#875f35"];
+           const leaveColors = ["#228B22aa", "#2e8b2eaa", "#387038aa"];
+           const sandColors = ["#dbca96", "#e3d3a1", "#c9b988"];
+            const waterColors = ["rgba(30, 100, 220, 0.6)", "rgba(40, 110, 230, 0.6)","rgba(20, 90, 200, 0.6)"];
+          const basicMat = (tex, transparent = false, opacity=1.0) => new THREE.MeshLambertMaterial({ map: tex, transparent: transparent, opacity: opacity, alphaTest: transparent ? 0.2 : 0 });
+           const dirtTex = createPixelTexture(dirtColors, noisyPattern);
+           const stoneTex = createPixelTexture(stoneColors, noisyPattern);
+           const cobbleTex = createPixelTexture(["#666", "#777", "#6a6a6a", "#5c5c5c"], noisyPattern);
+           const grassSideTex = createPixelTexture({dirt: dirtColors, grass: grassColors}, (x,y,c) => y < TEXTURE_SIZE / 3.5 ? grassTopPattern(x,y,c) : noisyPattern(x,y,c.dirt) );
+           const grassTopTex = createPixelTexture({dirt: dirtColors, grass: grassColors}, grassTopPattern);
+           const woodSideTex = createPixelTexture(woodColors, woodPattern);
+           const woodTopTex = createPixelTexture(woodColors, woodTopPattern);
+           const leaveTex = createPixelTexture(leaveColors, noisyAlphaPattern);
+           const sandTex = createPixelTexture(sandColors, noisyPattern);
+           const waterTex = createPixelTexture(waterColors, noisyPattern);
+           materials[BLOCK_TYPE.DIRT] = basicMat(dirtTex);
+           materials[BLOCK_TYPE.STONE] = basicMat(stoneTex);
+           materials[BLOCK_TYPE.COBBLE] = basicMat(cobbleTex);
+           materials[BLOCK_TYPE.SAND] = basicMat(sandTex);
+           materials[BLOCK_TYPE.LEAVES] = basicMat(leaveTex, true);
+           materials[BLOCK_TYPE.WATER] = basicMat(waterTex, true, 0.7);
+           materials[BLOCK_TYPE.GRASS] = [basicMat(grassSideTex), basicMat(grassSideTex), basicMat(grassTopTex), basicMat(dirtTex), basicMat(grassSideTex), basicMat(grassSideTex)];
+           materials[BLOCK_TYPE.WOOD] = [basicMat(woodSideTex), basicMat(woodSideTex), basicMat(woodTopTex), basicMat(woodTopTex), basicMat(woodSideTex), basicMat(woodSideTex)];
       }
 
-      class World {
+        class World {
             constructor() {
                  this.chunks = new Map();
                   this.meshQueue = new Set();
@@ -731,14 +708,12 @@
               this.provider = 'groq';
               this.goal = "Wander around and observe the world.";
               this.lastActionTime = 0;
-              this.actionInterval = 4000;
+              this.actionInterval = 3000;
               this.isThinking = false;
               
               this.statusElement = document.getElementById('ai-status');
               this.goalElement = document.getElementById('aiGoal');
               this.toggleButton = document.getElementById('ai-toggle');
-              this.promptInspector = document.getElementById('prompt-inspector');
-              this.promptContent = document.getElementById('prompt-content');
 
               this.groqSettings = document.getElementById('groq-settings');
               this.ollamaSettings = document.getElementById('ollama-settings');
@@ -748,22 +723,8 @@
               this.fetchOllamaBtn = document.getElementById('fetch-ollama-models');
               this.ollamaStatus = document.getElementById('ollama-status');
 
-              // --- NEW MEMORY SYSTEM ---
-              this.history = [];
-              this.maxHistory = 5; // Keep track of the last 5 thought/action pairs.
-
               this.setupEventListeners();
               this.setGoal(this.goalElement.value);
-
-              // Vision System Setup
-              this.visionRenderer = new THREE.WebGLRenderer();
-              this.visionRenderer.setSize(10, 10);
-              this.visionRenderTarget = new THREE.WebGLRenderTarget(10, 10);
-              this.idMaterials = {};
-              for (const [name, type] of Object.entries(BLOCK_TYPE)) {
-                  const idColor = new THREE.Color(type / 255, 0, 0);
-                  this.idMaterials[type] = new THREE.MeshBasicMaterial({ color: idColor });
-              }
           }
           
           setupEventListeners() {
@@ -787,11 +748,7 @@
               }
           }
 
-          setGoal(newGoal) { 
-              this.goal = newGoal; 
-              this.history = []; // Reset history when goal changes
-              this.statusElement.textContent = `New Goal: ${this.goal}`; 
-          }
+          setGoal(newGoal) { this.goal = newGoal; this.statusElement.textContent = `New Goal: ${this.goal}`; }
           
           toggleAIMode() {
               isAIModeActive = !isAIModeActive;
@@ -800,14 +757,11 @@
                   this.toggleButton.textContent = 'Disable AI Mode';
                   this.toggleButton.classList.add('active');
                   this.statusElement.textContent = "AI Activated. Observing...";
-                  this.promptInspector.style.display = 'block';
                   if (!player.isLocked) { pointerLockElement.requestPointerLock(); }
               } else {
                   this.toggleButton.textContent = 'Enable AI Mode';
                   this.toggleButton.classList.remove('active');
                   this.statusElement.textContent = "AI is idle.";
-                  this.promptInspector.style.display = 'none';
-                  this.history = []; // Clear history on disable
                   player.moveForward = player.moveBackward = player.moveLeft = player.moveRight = false;
               }
           }
@@ -845,7 +799,7 @@
               if (now - this.lastActionTime > this.actionInterval) {
                   this.lastActionTime = now;
                   this.isThinking = true;
-                  const prompt = this.generatePrompt();
+                  const prompt = this.observeAndFormat();
                   this.think(prompt);
               }
           }
@@ -862,172 +816,61 @@
               if (pitch > Math.PI / 4) return "looking down at your feet";
               return "looking straight ahead";
           }
-          
-          captureVision(maxDistance) {
-              const originalFar = camera.far;
-              const originalMaterials = {};
-              const originalBackground = scene.background;
-              const originalFog = scene.fog;
 
-              try {
-                  scene.background = null; 
-                  scene.fog = null;
-                  this.visionRenderer.setClearColor(0x000000);
-
-                  camera.far = maxDistance;
-                  camera.updateProjectionMatrix();
-
-                  for (const type in instancedMeshes) {
-                      if (instancedMeshes[type]) {
-                          originalMaterials[type] = instancedMeshes[type].material;
-                          const idMaterial = this.idMaterials[type];
-                          if (Array.isArray(originalMaterials[type])) {
-                              instancedMeshes[type].material = Array(originalMaterials[type].length).fill(idMaterial);
-                          } else {
-                              instancedMeshes[type].material = idMaterial;
-                          }
-                      }
-                  }
-                  
-                  this.visionRenderer.setRenderTarget(this.visionRenderTarget);
-                  this.visionRenderer.render(scene, camera);
-
-                  const buffer = new Uint8Array(10 * 10 * 4);
-                  this.visionRenderer.readRenderTargetPixels(this.visionRenderTarget, 0, 0, 10, 10, buffer);
-                  this.visionRenderer.setRenderTarget(null);
-
-                  return buffer;
-
-              } finally {
-                  camera.far = originalFar;
-                  camera.updateProjectionMatrix();
-                  scene.background = originalBackground;
-                  scene.fog = originalFog;
-                  for (const type in originalMaterials) {
-                      if (instancedMeshes[type]) {
-                          instancedMeshes[type].material = originalMaterials[type];
-                      }
-                  }
-              }
-          }
-          
-          generateFovDescription() {
-              const fov = { width: 10, height: 10, nearDepth: 5, farDepth: 12 };
-              const blockChars = {
-                  [BLOCK_TYPE.AIR]: '.', [BLOCK_TYPE.GRASS]: 'G', [BLOCK_TYPE.DIRT]: 'D',
-                  [BLOCK_TYPE.STONE]: 'S', [BLOCK_TYPE.WOOD]: 'W', [BLOCK_TYPE.LEAVES]: 'L',
-                  [BLOCK_TYPE.WATER]: '~', [BLOCK_TYPE.SAND]: 'A', [BLOCK_TYPE.COBBLE]: 'C'
-              };
-
-              let nearGrid = Array(fov.height).fill().map(() => Array(fov.width).fill('.'));
-              let farGrid = Array(fov.height).fill().map(() => Array(fov.width).fill('.'));
-
-              const nearBuffer = this.captureVision(fov.nearDepth);
-              const farBuffer = this.captureVision(fov.farDepth);
-
-              for (let y = 0; y < fov.height; y++) {
-                  for (let x = 0; x < fov.width; x++) {
-                      const R = ((fov.height - 1 - y) * fov.width + x) * 4; 
-                      
-                      const nearBlockId = nearBuffer[R];
-                      const farBlockId = farBuffer[R];
-
-                      if (nearBlockId !== BLOCK_TYPE.AIR) {
-                          nearGrid[y][x] = (blockChars[nearBlockId] || '?').toUpperCase();
-                      } else if (farBlockId !== BLOCK_TYPE.AIR) {
-                          farGrid[y][x] = (blockChars[farBlockId] || '?').toLowerCase();
-                      }
-                  }
-              }
-              
-              const nearView = nearGrid.map(row => row.join('')).join('\n');
-              const farView = farGrid.map(row => row.join('')).join('\n');
-              
-              return `You have a 10x10 pixel vision. The center of your vision is between rows 4 and 5, and columns 4 and 5.
-
-Key: (A-Z) = Near objects (1-5 blocks away), (a-z) = Far objects (6-12 blocks away)
-. = Air, G/g = Grass, D/d = Dirt, S/s = Stone, W/w = Wood, L/l = Leaves, ~/` + `~ = Water, C/c = Cobble, A/a = Sand
-
-Near View (1-5 blocks):
-${nearView}
-
-Far View (6-12 blocks):
-${farView}`;
-          }
-
-          generatePrompt() {
+          observeAndFormat() {
               const pos = player.position;
-
-              let stateDescription;
-              const blockAtHead = world.getBlock(pos.x, pos.y, pos.z);
-              if (blockAtHead === BLOCK_TYPE.WATER) {
-                  stateDescription = "in water";
-              } else if (player.onGround) {
-                  stateDescription = "on solid ground";
-              } else {
-                  if (player.velocity.y > 0.1) {
-                      stateDescription = "jumping";
-                  } else if (player.velocity.y < -0.1) {
-                      stateDescription = "falling";
-                  } else {
-                      stateDescription = "in mid-air";
-                  }
-              }
-              
-              // --- NEW: Format action history for the prompt ---
-              let historyText = "You have no prior actions in memory.";
-              if (this.history.length > 0) {
-                  historyText = "Here is the history of your recent thoughts and actions (oldest first):\n";
-                  this.history.forEach((entry, index) => {
-                      historyText += `${index + 1}. Thought: ${entry.thought}\n   Action: ${JSON.stringify(entry.action)}\n`;
-                  });
-              }
-
               const statusText = `*   Position: (${pos.x.toFixed(1)}, ${pos.y.toFixed(1)}, ${pos.z.toFixed(1)})
 *   Orientation: You are facing ${this.getCardinalDirection(cameraYaw.rotation.y)}. You are ${this.getPitchDescription(cameraPitch.rotation.x)}.
-*   State: You are ${stateDescription}.`;
+*   State: You are ${player.onGround ? 'on solid ground' : (world.getBlock(pos.x, pos.y, pos.z) === BLOCK_TYPE.WATER ? 'in water' : 'falling')}.`;
               
               const intersect = castRay();
               const focusText = intersect
-                  ? `*   Your crosshair is aimed at a ${BLOCK_NAME[world.getBlock(intersect.blockPos.x, intersect.blockPos.y, intersect.blockPos.z)]} block.`
-                  : `*   Your crosshair is aimed at empty space.`;
+                  ? `*   You are looking at a ${BLOCK_NAME[world.getBlock(intersect.blockPos.x, intersect.blockPos.y, intersect.blockPos.z)]} block. It is ${intersect.distance.toFixed(1)} blocks away.`
+                  : `*   You are looking at empty space.`;
               
               const inventoryText = `*   Hotbar: ${PLACEABLE_BLOCKS.map((type, i) => `${i+1}: ${BLOCK_NAME[type]}`).join(', ')}
 *   Selected: You are currently holding ${BLOCK_NAME[PLACEABLE_BLOCKS[selectedBlockTypeIndex]]} (slot ${selectedBlockTypeIndex + 1}).`;
 
-              const fovText = this.generateFovDescription();
-
-              return `You are an AI agent in a block-based world.
+              return `You are an AI agent playing a block-based survival game. Your goal is to reason about your environment and choose the best action to take in each step to achieve your objective.
 ---
 ### HIGH-LEVEL GOAL
 Your current objective is: **"${this.goal}"**
 ---
-### ACTION HISTORY
-${historyText}
----
-### CURRENT OBSERVATION
+### OBSERVATION
+**Your Status:**
 ${statusText}
+**Focus (Crosshair):**
 ${focusText}
+**Inventory:**
 ${inventoryText}
 ---
-### FIELD OF VIEW
-${fovText}
----
 ### AVAILABLE ACTIONS
-You must choose ONE of the following actions. Respond with a single, valid JSON object and nothing else.
-*   Movement: \`{"action": "move_forward"}\`, \`{"action": "move_backward"}\`, \`{"action": "move_left"}\`, \`{"action": "move_right"}\`, \`{"action": "jump"}\`, \`{"action": "jump_forward"}\`
-*   View: \`{"action": "turn_left"}\`, \`{"action": "turn_right"}\`, \`{"action": "look_up"}\`, \`{"action": "look_down"}\`
-*   Interaction: \`{"action": "break_block"}\`, \`{"action": "place_block"}\`
-*   Inventory: \`{"action": "select_hotbar_slot", "slot": <1-7>}\`
-*   Wait: \`{"action": "wait"}\`
+You must choose ONE of the following actions. Respond with a single, valid JSON object and nothing else. Your entire response must be ONLY the JSON object.
+*   Movement (these actions simulate a short key press):
+    *   \`{"action": "move_forward"}\`
+    *   \`{"action": "move_backward"}\`
+    *   \`{"action": "move_left"}\`
+    *   \`{"action": "move_right"}\`
+    *   \`{"action": "jump"}\`
+*   View (these actions are instantaneous):
+    *   \`{"action": "turn_left"}\` (turns 90 degrees left)
+    *   \`{"action": "turn_right"}\` (turns 90 degrees right)
+    *   \`{"action": "look_up"}\` (pans camera up 30 degrees)
+    *   \`{"action": "look_down"}\` (pans camera down 30 degrees)
+*   Interaction:
+    *   \`{"action": "break_block"}\` (breaks the block in your focus)
+    *   \`{"action": "place_block"}\` (places the currently held block)
+*   Inventory:
+    *   \`{"action": "select_hotbar_slot", "slot": <1-7>}\`
+*   Wait:
+    *   \`{"action": "wait"}\` (do nothing and observe again)
 ---
 ### YOUR DECISION
-Based on your goal, your action history, and your current observations, provide your thought process and then the JSON for your next action.
+Based on your goal and observations, first provide your thought process in one sentence, then provide the JSON for your next action.
 Thought:`;
           }
 
           async think(prompt) {
-              this.promptContent.textContent = prompt;
               if (this.provider === 'groq') {
                   this.thinkGroq(prompt);
               } else {
@@ -1095,56 +938,19 @@ Thought:`;
 
           act(responseText) {
               this.statusElement.textContent = responseText;
-              let thought = "";
-              let action = null;
-
               try {
-                  // --- NEW: Parse thought and action from response ---
-                  const thoughtPrefix = "Thought:";
-                  const thoughtStartIndex = responseText.indexOf(thoughtPrefix);
-                  const jsonStartIndex = responseText.indexOf('{', thoughtStartIndex);
-                  const jsonEndIndex = responseText.lastIndexOf('}');
-
-                  if (thoughtStartIndex !== -1 && jsonStartIndex > thoughtStartIndex && jsonEndIndex > jsonStartIndex) {
-                      thought = responseText.substring(thoughtStartIndex + thoughtPrefix.length, jsonStartIndex).trim();
-                      const actionJSON = responseText.substring(jsonStartIndex, jsonEndIndex + 1);
-                      action = JSON.parse(actionJSON);
-                  } else {
-                      // Fallback if parsing fails
-                      const jsonStart = responseText.indexOf('{');
-                      const jsonEnd = responseText.lastIndexOf('}');
-                      if (jsonStart === -1 || jsonEnd === -1) throw new Error("No valid JSON found in LLM response.");
-                      const actionJSON = responseText.substring(jsonStart, jsonEnd + 1);
-                      action = JSON.parse(actionJSON);
-                      thought = "(Could not parse thought)";
-                  }
-                  
-                  // --- NEW: Add to history ---
-                  this.history.push({ thought, action });
-                  if (this.history.length > this.maxHistory) {
-                      this.history.shift(); // Keep history at max size
-                  }
-
-                  console.log("AI Thought:", thought);
+                  const jsonStart = responseText.indexOf('{');
+                  const jsonEnd = responseText.lastIndexOf('}');
+                  if (jsonStart === -1 || jsonEnd === -1) { throw new Error("No valid JSON found in LLM response."); }
+                  const actionJSON = responseText.substring(jsonStart, jsonEnd + 1);
+                  const action = JSON.parse(actionJSON);
                   console.log("AI Action:", action);
-                  
-                  // Execute the parsed action
                   switch (action.action) {
                       case 'move_forward': player.moveForward = true; setTimeout(() => { player.moveForward = false; }, 200); break;
                       case 'move_backward': player.moveBackward = true; setTimeout(() => { player.moveBackward = false; }, 200); break;
                       case 'move_left': player.moveLeft = true; setTimeout(() => { player.moveLeft = false; }, 200); break;
                       case 'move_right': player.moveRight = true; setTimeout(() => { player.moveRight = false; }, 200); break;
                       case 'jump': if(player.onGround) { player.velocity.y = JUMP_VELOCITY; player.onGround = false; } break;
-                      
-                      case 'jump_forward':
-                          if (player.onGround) {
-                              player.velocity.y = JUMP_VELOCITY;
-                              player.onGround = false;
-                              player.moveForward = true;
-                              setTimeout(() => { player.moveForward = false; }, 350);
-                          }
-                          break;
-
                       case 'turn_left': cameraYaw.rotation.y += Math.PI / 2; break;
                       case 'turn_right': cameraYaw.rotation.y -= Math.PI / 2; break;
                       case 'look_up': cameraPitch.rotation.x -= Math.PI / 6; cameraPitch.rotation.x = Math.max(-Math.PI / 2, cameraPitch.rotation.x); break;
@@ -1157,7 +963,6 @@ Thought:`;
                   }
               } catch (error) {
                    this.statusElement.textContent += `\nError parsing action: ${error.message}`;
-                   console.error("AI Act Error:", error);
               } finally {
                   this.isThinking = false;
               }
